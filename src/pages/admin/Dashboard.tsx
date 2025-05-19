@@ -1,285 +1,242 @@
 
-import { useState } from "react";
-import Header from "@/components/Header";
+import { useQuery } from "@tanstack/react-query";
+import { dashboardApi, pickupsApi, staffApi } from "@/lib/api";
+import { useState, useEffect } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { 
-  TruckIcon, 
-  UserIcon, 
-  PackageIcon, 
-  CheckIcon, 
-  ArrowRightIcon, 
-  CalendarIcon,
-  UsersIcon 
-} from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { PackageCheck, Users, DollarSign, Calendar } from "lucide-react";
 
 const AdminDashboard = () => {
-  // This would normally be fetched from your API
-  const [recentPickups, setRecentPickups] = useState([
-    { 
-      id: 201, 
-      date: "2025-05-19", 
-      customer: "John Smith",
-      address: "123 Main St, Anytown",
-      items: "Paper, Plastic", 
-      assignedTo: "Mike Collector",
-      status: "Assigned" 
-    },
-    { 
-      id: 202, 
-      date: "2025-05-19", 
-      customer: "Jane Doe",
-      address: "456 Oak Ave, Anytown",
-      items: "Electronics", 
-      assignedTo: "Sara Picker",
-      status: "Completed" 
-    },
-    { 
-      id: 203, 
-      date: "2025-05-19", 
-      customer: "Bob Johnson",
-      address: "789 Pine Rd, Anytown",
-      items: "Metal, Others", 
-      assignedTo: null,
-      status: "Pending" 
-    },
-  ]);
-
   const [stats, setStats] = useState({
-    totalPickups: 203,
-    pendingAssignment: 8,
-    activeStaff: 12,
-    revenue: "$2,850.75"
+    totalPickupsToday: 0,
+    pickupsCompleted: 0,
+    activeStaff: 0,
+    totalEarnings: "$0.00",
+    recentActivity: []
   });
 
-  const assignStaff = (pickupId: number) => {
-    // This would normally open a modal to select staff
-    toast({
-      title: "Coming Soon!",
-      description: "The staff assignment feature will be available shortly.",
-    });
-  };
+  const [pickupData, setPickupData] = useState<any[]>([]);
+
+  // Fetch dashboard data
+  const { data: dashboardData } = useQuery({
+    queryKey: ['adminDashboard'],
+    queryFn: dashboardApi.getData
+  });
+
+  // Fetch pickups for chart
+  const { data: pickupsData } = useQuery({
+    queryKey: ['adminPickups'],
+    queryFn: pickupsApi.getAll
+  });
+
+  // Update state when data is loaded
+  useEffect(() => {
+    if (dashboardData) {
+      setStats(dashboardData);
+    }
+  }, [dashboardData]);
+
+  useEffect(() => {
+    if (pickupsData) {
+      // Group pickups by date for chart
+      const grouped = pickupsData.reduce((acc: any, pickup: any) => {
+        const date = pickup.date;
+        if (!acc[date]) {
+          acc[date] = { date, count: 0, completed: 0 };
+        }
+        acc[date].count += 1;
+        if (pickup.status === 'Completed') {
+          acc[date].completed += 1;
+        }
+        return acc;
+      }, {});
+
+      // Convert to array for chart
+      const chartData = Object.values(grouped).sort((a: any, b: any) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      
+      setPickupData(chartData);
+    }
+  }, [pickupsData]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header userRole="admin" userName="Admin User" />
-      
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-1">Admin Dashboard</h1>
-          <p className="text-gray-600">Manage pickups, staff, and monitor system performance.</p>
-        </div>
-
+    <DashboardLayout allowedRoles={['admin']}>
+      <div className="p-8">
+        <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+        
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Pickups</CardTitle>
-              <PackageIcon className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Today's Pickups</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalPickups}</div>
-              <p className="text-xs text-muted-foreground">All time</p>
+              <div className="text-2xl font-bold">{stats.totalPickupsToday}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.pickupsCompleted}/{stats.totalPickupsToday} completed
+              </p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Pending Assignment</CardTitle>
-              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pendingAssignment}</div>
-              <p className="text-xs text-muted-foreground">Require staff assignment</p>
-            </CardContent>
-          </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Active Staff</CardTitle>
-              <UsersIcon className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.activeStaff}</div>
-              <p className="text-xs text-muted-foreground">Currently employed</p>
+              <p className="text-xs text-muted-foreground">
+                Staff members on duty
+              </p>
             </CardContent>
           </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <div className="rounded-md bg-primary/10 p-1">
-                <span className="text-primary text-sm">$</span>
-              </div>
+              <CardTitle className="text-sm font-medium">Total Pickups</CardTitle>
+              <PackageCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.revenue}</div>
-              <p className="text-xs text-muted-foreground">This month</p>
+              <div className="text-2xl font-bold">
+                {pickupData.reduce((sum: number, item: any) => sum + item.count, 0)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                All time
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalEarnings}</div>
+              <p className="text-xs text-muted-foreground">
+                All time
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Recent Pickups */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Recent Pickups</h2>
-              <Button variant="outline" size="sm" className="flex items-center gap-1">
-                View All <ArrowRightIcon className="h-4 w-4" />
-              </Button>
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* Pickup Statistics Chart */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Pickup Statistics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={pickupData}
+                    margin={{
+                      top: 5,
+                      right: 30,
+                      left: 20,
+                      bottom: 5,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="count" name="Total Pickups" fill="#10B981" />
+                    <Bar dataKey="completed" name="Completed" fill="#6EE7B7" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {stats.recentActivity ? (
+                  stats.recentActivity.map((activity: any) => (
+                    <div key={activity.id} className="flex items-center">
+                      <div className="mr-4 bg-green-100 p-2 rounded-full">
+                        <div className="h-2 w-2 rounded-full bg-green-600"></div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{activity.action}</p>
+                        <p className="text-xs text-gray-500">{activity.user} • {activity.time}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-500">No recent activity</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Staff Performance */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Staff Performance</CardTitle>
+          </CardHeader>
+          <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Materials</TableHead>
-                  <TableHead>Assigned To</TableHead>
+                  <TableHead>Staff Member</TableHead>
+                  <TableHead>Assigned Pickups</TableHead>
+                  <TableHead>Completed</TableHead>
+                  <TableHead>Completion Rate</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentPickups.map((pickup) => (
-                  <TableRow key={pickup.id}>
-                    <TableCell className="font-medium">#{pickup.id}</TableCell>
-                    <TableCell>{pickup.date}</TableCell>
-                    <TableCell>{pickup.customer}</TableCell>
-                    <TableCell>{pickup.items}</TableCell>
-                    <TableCell>{pickup.assignedTo || "—"}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                        ${pickup.status === 'Completed' ? 'bg-green-100 text-green-800' : 
-                          pickup.status === 'Assigned' ? 'bg-blue-100 text-blue-800' : 
-                          'bg-yellow-100 text-yellow-800'}`}>
-                        {pickup.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {pickup.status === 'Pending' ? (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => assignStaff(pickup.id)}
-                        >
-                          <UserIcon className="mr-1 h-4 w-4" /> Assign Staff
-                        </Button>
-                      ) : (
-                        <Button variant="ghost" size="sm">View Details</Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                <TableRow>
+                  <TableCell className="font-medium">Mike Collector</TableCell>
+                  <TableCell>24</TableCell>
+                  <TableCell>23</TableCell>
+                  <TableCell className="text-green-600">98%</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Active
+                    </span>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Sara Picker</TableCell>
+                  <TableCell>18</TableCell>
+                  <TableCell>17</TableCell>
+                  <TableCell className="text-green-600">95%</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Active
+                    </span>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Tom Hauler</TableCell>
+                  <TableCell>15</TableCell>
+                  <TableCell>13</TableCell>
+                  <TableCell className="text-yellow-600">85%</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Active
+                    </span>
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
-          </div>
-        </div>
-
-        {/* Analytics Summary */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Material Distribution */}
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Material Distribution</h2>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Paper</span>
-                  <span className="text-sm">35%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '35%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Metal</span>
-                  <span className="text-sm">25%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-gray-500 h-2.5 rounded-full" style={{ width: '25%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Plastic</span>
-                  <span className="text-sm">20%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-green-500 h-2.5 rounded-full" style={{ width: '20%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Electronics</span>
-                  <span className="text-sm">15%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-yellow-500 h-2.5 rounded-full" style={{ width: '15%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Others</span>
-                  <span className="text-sm">5%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-red-500 h-2.5 rounded-full" style={{ width: '5%' }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Staff Performance */}
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Staff Performance</h2>
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <th className="text-left pb-3 text-sm font-medium text-gray-500">Staff Member</th>
-                  <th className="text-center pb-3 text-sm font-medium text-gray-500">Pickups</th>
-                  <th className="text-center pb-3 text-sm font-medium text-gray-500">Completion Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="py-2">Mike Collector</td>
-                  <td className="text-center">24</td>
-                  <td className="text-center">
-                    <span className="text-green-600">98%</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-2">Sara Picker</td>
-                  <td className="text-center">18</td>
-                  <td className="text-center">
-                    <span className="text-green-600">95%</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-2">Tom Hauler</td>
-                  <td className="text-center">15</td>
-                  <td className="text-center">
-                    <span className="text-yellow-600">85%</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-2">Lisa Driver</td>
-                  <td className="text-center">12</td>
-                  <td className="text-center">
-                    <span className="text-green-600">100%</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="mt-4 text-center">
-              <Button variant="outline" size="sm" className="flex items-center gap-1 mx-auto">
-                Full Staff Report <ArrowRightIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
   );
 };
 

@@ -11,7 +11,7 @@ export interface DecodedToken {
   exp: number;
 }
 
-// Modified to work with regular request objects instead of Next.js specific ones
+// Modified to work with regular request objects
 export function getCurrentUser(req: Request): DecodedToken | null {
   try {
     // Extract token from cookies in the request
@@ -25,6 +25,7 @@ export function getCurrentUser(req: Request): DecodedToken | null {
     const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
     return decoded;
   } catch (error) {
+    console.error("Error getting current user:", error);
     return null;
   }
 }
@@ -41,7 +42,7 @@ function parseCookies(request: Request) {
   }, {} as Record<string, string>);
 }
 
-// Modified auth middleware for React Router instead of Next.js
+// Auth middleware for React Router
 export function withAuth(roles?: string[]) {
   return (req: Request) => {
     const user = getCurrentUser(req);
