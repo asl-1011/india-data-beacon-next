@@ -1,8 +1,5 @@
 
-import { NextApiRequest, NextApiResponse } from 'next';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'scrapcycle_secret_key';
+// API route handler for login
 
 // Mock database for users
 const users = [
@@ -11,19 +8,24 @@ const users = [
   { id: 3, name: "Admin User", email: "admin@example.com", password: "adminpass", role: "admin" },
 ];
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
+// This function handles the POST request to /api/auth/login
+export async function POST(req: Request) {
   try {
-    const { email, password } = req.body;
+    const body = await req.json();
+    const { email, password } = body;
 
     // Find user
     const user = users.find(user => user.email === email);
     if (!user || user.password !== password) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return new Response(JSON.stringify({ message: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
+
+    // In a real app, we would use a proper library to generate JWT
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'scrapcycle_secret_key';
 
     // Generate JWT token
     const token = jwt.sign(
@@ -33,9 +35,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     );
 
     // Set the token as an HttpOnly cookie
-    res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24}`);
+    const cookieHeader = `token=${token}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24}`;
 
-    return res.status(200).json({ 
+    return new Response(JSON.stringify({ 
       message: 'Login successful',
       user: {
         id: user.id,
@@ -43,9 +45,18 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         email: user.email,
         role: user.role
       }
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Set-Cookie': cookieHeader
+      }
     });
   } catch (error) {
     console.error('Login error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return new Response(JSON.stringify({ message: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

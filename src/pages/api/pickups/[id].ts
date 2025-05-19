@@ -1,5 +1,5 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth, DecodedToken } from '@/lib/auth';
+// API route handler for pickup by ID
+import { withAuth } from '../../../lib/auth';
 
 // Mock pickups database (same as in the index file)
 let pickups = [
@@ -65,77 +65,136 @@ let pickups = [
   },
 ];
 
-function handleGet(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  const { id } = req.query;
-  const pickupId = parseInt(id as string);
-  
-  const pickup = pickups.find(p => p.id === pickupId);
-  
-  if (!pickup) {
-    return res.status(404).json({ message: 'Pickup not found' });
-  }
-  
-  // Check permissions based on role
-  if (user.role === 'seller' && pickup.customerId !== user.userId) {
-    return res.status(403).json({ message: 'Not authorized to view this pickup' });
-  }
-  
-  if (user.role === 'staff' && pickup.assignedTo !== user.userId) {
-    return res.status(403).json({ message: 'Not authorized to view this pickup' });
-  }
-  
-  return res.status(200).json(pickup);
-}
+// This function handles the GET request to /api/pickups/[id]
+export async function GET(req: Request) {
+  try {
+    // Extract pickup ID from URL
+    const url = new URL(req.url);
+    const pathSegments = url.pathname.split('/');
+    const idStr = pathSegments[pathSegments.length - 1];
+    const pickupId = parseInt(idStr);
 
-function handlePatch(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  const { id } = req.query;
-  const pickupId = parseInt(id as string);
-  
-  const pickup = pickups.find(p => p.id === pickupId);
-  
-  if (!pickup) {
-    return res.status(404).json({ message: 'Pickup not found' });
-  }
-  
-  // Check permissions based on role and action
-  if (user.role === 'admin') {
-    // Admin can update any pickup
-    const { status, assignedTo, staffName } = req.body;
+    if (isNaN(pickupId)) {
+      return new Response(JSON.stringify({ message: 'Invalid pickup ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check authentication and get user
+    const auth = withAuth(['seller', 'staff', 'admin']);
+    const user = auth(req);
     
-    if (status) pickup.status = status;
-    if (assignedTo) pickup.assignedTo = assignedTo;
-    if (staffName) pickup.staffName = staffName;
-  } else if (user.role === 'staff') {
-    // Staff can only update status of pickups assigned to them
-    if (pickup.assignedTo !== user.userId) {
-      return res.status(403).json({ message: 'Not authorized to update this pickup' });
+    const pickup = pickups.find(p => p.id === pickupId);
+    
+    if (!pickup) {
+      return new Response(JSON.stringify({ message: 'Pickup not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
     
-    const { status } = req.body;
-    if (status) pickup.status = status;
-    
-    // If marking as completed, set weight and amount
-    if (status === 'Completed' && pickup.weight === 'Pending') {
-      pickup.weight = `${(Math.random() * 10 + 1).toFixed(1)} kg`;
-      pickup.amount = `$${(Math.random() * 10 + 1).toFixed(2)}`;
+    // Check permissions based on role
+    if (user.role === 'seller' && pickup.customerId !== user.userId) {
+      return new Response(JSON.stringify({ message: 'Not authorized to view this pickup' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
-  } else {
-    // Sellers cannot update pickups
-    return res.status(403).json({ message: 'Not authorized to update pickups' });
+    
+    if (user.role === 'staff' && pickup.assignedTo !== user.userId) {
+      return new Response(JSON.stringify({ message: 'Not authorized to view this pickup' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    return new Response(JSON.stringify(pickup), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Pickup fetch error:', error);
+    return new Response(JSON.stringify({ message: error instanceof Error ? error.message : 'Internal server error' }), {
+      status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
-  
-  return res.status(200).json(pickup);
 }
 
-function handler(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  switch (req.method) {
-    case 'GET':
-      return handleGet(req, res, user);
-    case 'PATCH':
-      return handlePatch(req, res, user);
-    default:
-      return res.status(405).json({ message: 'Method not allowed' });
+// This function handles the PATCH request to /api/pickups/[id]
+export async function PATCH(req: Request) {
+  try {
+    // Extract pickup ID from URL
+    const url = new URL(req.url);
+    const pathSegments = url.pathname.split('/');
+    const idStr = pathSegments[pathSegments.length - 1];
+    const pickupId = parseInt(idStr);
+
+    if (isNaN(pickupId)) {
+      return new Response(JSON.stringify({ message: 'Invalid pickup ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check authentication and get user
+    const auth = withAuth(['staff', 'admin']);
+    const user = auth(req);
+    
+    const pickup = pickups.find(p => p.id === pickupId);
+    
+    if (!pickup) {
+      return new Response(JSON.stringify({ message: 'Pickup not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const body = await req.json();
+    
+    // Check permissions based on role and action
+    if (user.role === 'admin') {
+      // Admin can update any pickup
+      const { status, assignedTo, staffName } = body;
+      
+      if (status) pickup.status = status;
+      if (assignedTo) pickup.assignedTo = assignedTo;
+      if (staffName) pickup.staffName = staffName;
+    } else if (user.role === 'staff') {
+      // Staff can only update status of pickups assigned to them
+      if (pickup.assignedTo !== user.userId) {
+        return new Response(JSON.stringify({ message: 'Not authorized to update this pickup' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      
+      const { status } = body;
+      if (status) pickup.status = status;
+      
+      // If marking as completed, set weight and amount
+      if (status === 'Completed' && pickup.weight === 'Pending') {
+        pickup.weight = `${(Math.random() * 10 + 1).toFixed(1)} kg`;
+        pickup.amount = `$${(Math.random() * 10 + 1).toFixed(2)}`;
+      }
+    } else {
+      // Sellers cannot update pickups
+      return new Response(JSON.stringify({ message: 'Not authorized to update pickups' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    return new Response(JSON.stringify(pickup), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Pickup update error:', error);
+    return new Response(JSON.stringify({ message: error instanceof Error ? error.message : 'Internal server error' }), {
+      status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
-
-export default withAuth(handler);

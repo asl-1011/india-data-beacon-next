@@ -1,6 +1,5 @@
-
-import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth, DecodedToken } from '@/lib/auth';
+// API route handler for pickups
+import { withAuth } from '../../../lib/auth';
 
 // Mock pickups database
 let pickups = [
@@ -66,67 +65,86 @@ let pickups = [
   },
 ];
 
-function handleGet(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  // Filter pickups based on user role
-  let filteredPickups = [];
-  
-  if (user.role === 'admin') {
-    // Admin sees all pickups
-    filteredPickups = pickups;
-  } else if (user.role === 'staff') {
-    // Staff sees pickups assigned to them
-    filteredPickups = pickups.filter(pickup => pickup.assignedTo === user.userId);
-  } else {
-    // Sellers see their own pickups
-    filteredPickups = pickups.filter(pickup => pickup.customerId === user.userId);
-  }
-  
-  return res.status(200).json(filteredPickups);
-}
+// This function handles the GET request to /api/pickups
+export async function GET(req: Request) {
+  try {
+    // Check authentication and get user
+    const auth = withAuth(['seller', 'staff', 'admin']);
+    const user = auth(req);
 
-function handlePost(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  if (user.role !== 'seller') {
-    return res.status(403).json({ message: 'Only sellers can create pickups' });
-  }
-  
-  const { date, time, items, address, imageUrl } = req.body;
-  
-  // Validate required fields
-  if (!date || !time || !items || !address) {
-    return res.status(400).json({ message: 'Missing required fields' });
-  }
-  
-  // Create new pickup
-  const newPickup = {
-    id: pickups.length + 1,
-    date,
-    time,
-    status: 'Pending',
-    items,
-    weight: 'Pending',
-    amount: 'Pending',
-    customerId: user.userId,
-    customerName: 'John Smith', // In a real app, this would come from the user database
-    address,
-    assignedTo: null,
-    staffName: null,
-    imageUrl: imageUrl || null
-  };
-  
-  pickups.push(newPickup);
-  
-  return res.status(201).json(newPickup);
-}
-
-function handler(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  switch (req.method) {
-    case 'GET':
-      return handleGet(req, res, user);
-    case 'POST':
-      return handlePost(req, res, user);
-    default:
-      return res.status(405).json({ message: 'Method not allowed' });
+    // Filter pickups based on user role
+    let filteredPickups = [];
+    
+    if (user.role === 'admin') {
+      // Admin sees all pickups
+      filteredPickups = pickups;
+    } else if (user.role === 'staff') {
+      // Staff sees pickups assigned to them
+      filteredPickups = pickups.filter(pickup => pickup.assignedTo === user.userId);
+    } else {
+      // Sellers see their own pickups
+      filteredPickups = pickups.filter(pickup => pickup.customerId === user.userId);
+    }
+    
+    return new Response(JSON.stringify(filteredPickups), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Pickups fetch error:', error);
+    return new Response(JSON.stringify({ message: error instanceof Error ? error.message : 'Internal server error' }), {
+      status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 
-export default withAuth(handler);
+// This function handles the POST request to /api/pickups
+export async function POST(req: Request) {
+  try {
+    // Check authentication and get user
+    const auth = withAuth(['seller']);
+    const user = auth(req);
+
+    const body = await req.json();
+    const { date, time, items, address, imageUrl } = body;
+    
+    // Validate required fields
+    if (!date || !time || !items || !address) {
+      return new Response(JSON.stringify({ message: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Create new pickup
+    const newPickup = {
+      id: pickups.length + 1,
+      date,
+      time,
+      status: 'Pending',
+      items,
+      weight: 'Pending',
+      amount: 'Pending',
+      customerId: user.userId,
+      customerName: 'John Smith', // In a real app, this would come from the user database
+      address,
+      assignedTo: null,
+      staffName: null,
+      imageUrl: imageUrl || null
+    };
+    
+    pickups.push(newPickup);
+    
+    return new Response(JSON.stringify(newPickup), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Pickup creation error:', error);
+    return new Response(JSON.stringify({ message: error instanceof Error ? error.message : 'Internal server error' }), {
+      status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}

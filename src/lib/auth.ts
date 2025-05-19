@@ -42,9 +42,7 @@ function parseCookies(request: Request) {
 }
 
 // Modified auth middleware for React Router instead of Next.js
-export function withAuth(
-  roles?: string[]
-) {
+export function withAuth(roles?: string[]) {
   return (req: Request) => {
     const user = getCurrentUser(req);
 

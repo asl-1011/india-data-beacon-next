@@ -1,6 +1,6 @@
 
-import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth, DecodedToken } from '@/lib/auth';
+// API route handler for dashboard data
+import { withAuth } from '../../lib/auth';
 
 // Mock dashboard data
 const dashboardData = {
@@ -35,22 +35,41 @@ const dashboardData = {
   }
 };
 
-function handler(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
-  // Return dashboard data based on user role
-  switch (user.role) {
-    case 'seller':
-      return res.status(200).json(dashboardData.seller);
-    case 'staff':
-      return res.status(200).json(dashboardData.staff);
-    case 'admin':
-      return res.status(200).json(dashboardData.admin);
-    default:
-      return res.status(403).json({ message: 'Invalid user role' });
+// This function handles the GET request to /api/dashboard
+export async function GET(req: Request) {
+  try {
+    // Check authentication and get user
+    const auth = withAuth(['seller', 'staff', 'admin']);
+    const user = auth(req);
+    
+    // Return dashboard data based on user role
+    switch (user.role) {
+      case 'seller':
+        return new Response(JSON.stringify(dashboardData.seller), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      case 'staff':
+        return new Response(JSON.stringify(dashboardData.staff), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      case 'admin':
+        return new Response(JSON.stringify(dashboardData.admin), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      default:
+        return new Response(JSON.stringify({ message: 'Invalid user role' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' }
+        });
+    }
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    return new Response(JSON.stringify({ message: error instanceof Error ? error.message : 'Internal server error' }), {
+      status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
-
-export default withAuth(handler);

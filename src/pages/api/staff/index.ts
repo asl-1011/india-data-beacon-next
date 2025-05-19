@@ -1,6 +1,5 @@
-
-import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth, DecodedToken } from '@/lib/auth';
+// API route handler for staff
+import { withAuth } from '../../../lib/auth';
 
 // Mock staff database
 const staff = [
@@ -61,22 +60,22 @@ const staff = [
   },
 ];
 
-function handleGet(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  // Only admin can access staff list
-  if (user.role !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden' });
+// This function handles the GET request to /api/staff
+export async function GET(req: Request) {
+  try {
+    // Check authentication and get user
+    const auth = withAuth(['admin']);
+    const user = auth(req);
+    
+    return new Response(JSON.stringify(staff), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Staff fetch error:', error);
+    return new Response(JSON.stringify({ message: error instanceof Error ? error.message : 'Internal server error' }), {
+      status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
-  
-  return res.status(200).json(staff);
 }
-
-function handler(req: NextApiRequest, res: NextApiResponse, user: DecodedToken) {
-  switch (req.method) {
-    case 'GET':
-      return handleGet(req, res, user);
-    default:
-      return res.status(405).json({ message: 'Method not allowed' });
-  }
-}
-
-export default withAuth(handler);
