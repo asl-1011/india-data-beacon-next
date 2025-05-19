@@ -1,5 +1,6 @@
 
-import { NextApiRequest, NextApiResponse } from 'next';
+// This file provides a mock API for materials
+// In a real application, this would connect to a database
 
 // Mock materials database
 const materials = [
@@ -59,10 +60,14 @@ const materials = [
   }
 ];
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
-  return res.status(200).json(materials);
+// Mock handler for GET /api/materials
+export function GET() {
+  return new Response(JSON.stringify(materials), {
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
 }
+
+// Export materials for direct import in mock API service
+export default materials;

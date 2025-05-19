@@ -1,5 +1,4 @@
 
-import { NextApiRequest, NextApiResponse } from 'next';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'scrapcycle_secret_key';
@@ -12,9 +11,12 @@ export interface DecodedToken {
   exp: number;
 }
 
-export function getCurrentUser(req: NextApiRequest): DecodedToken | null {
+// Modified to work with regular request objects instead of Next.js specific ones
+export function getCurrentUser(req: Request): DecodedToken | null {
   try {
-    const token = req.cookies.token;
+    // Extract token from cookies in the request
+    const cookies = parseCookies(req);
+    const token = cookies.token;
     
     if (!token) {
       return null;
@@ -27,21 +29,33 @@ export function getCurrentUser(req: NextApiRequest): DecodedToken | null {
   }
 }
 
+// Helper function to parse cookies from request
+function parseCookies(request: Request) {
+  const cookieHeader = request.headers.get('cookie');
+  if (!cookieHeader) return {};
+  
+  return cookieHeader.split(';').reduce((cookies, cookie) => {
+    const [name, value] = cookie.trim().split('=');
+    cookies[name] = decodeURIComponent(value);
+    return cookies;
+  }, {} as Record<string, string>);
+}
+
+// Modified auth middleware for React Router instead of Next.js
 export function withAuth(
-  handler: (req: NextApiRequest, res: NextApiResponse, user: DecodedToken) => void,
   roles?: string[]
 ) {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
+  return (req: Request) => {
     const user = getCurrentUser(req);
 
     if (!user) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      throw new Error('Unauthorized');
     }
 
     if (roles && !roles.includes(user.role)) {
-      return res.status(403).json({ message: 'Forbidden' });
+      throw new Error('Forbidden');
     }
 
-    return handler(req, res, user);
+    return user;
   };
 }
