@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
-// Import our role-based pages (these will be created next)
+// Import our role-based pages
 import SellerDashboard from "./pages/seller/Dashboard";
 import SellerPickups from "./pages/seller/Pickups";
 import SellerNewPickup from "./pages/seller/NewPickup";
@@ -19,7 +19,18 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import AdminPickups from "./pages/admin/Pickups";
 import AdminStaff from "./pages/admin/Staff";
 
-const queryClient = new QueryClient();
+// Import auth pages
+import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -31,9 +42,9 @@ const App = () => (
           {/* Public routes */}
           <Route path="/" element={<Index />} />
           
-          {/* Auth routes will be handled by API but we'll need pages */}
-          <Route path="/login" element={<div>Login Page (To be implemented)</div>} />
-          <Route path="/register" element={<div>Register Page (To be implemented)</div>} />
+          {/* Auth routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           
           {/* Seller routes */}
           <Route path="/seller" element={<Navigate to="/seller/dashboard" replace />} />
